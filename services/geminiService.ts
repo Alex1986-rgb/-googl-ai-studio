@@ -7,26 +7,24 @@ export class GeminiSEOService {
     const { keyword, topic, language, targetLength, originalSlug, rowData } = request;
     const identity = TOPIC_IDENTITIES[topic as keyof typeof TOPIC_IDENTITIES] || TOPIC_IDENTITIES.General;
 
-    const contextString = rowData ? JSON.stringify(rowData) : "No specific row data provided";
+    const contextString = rowData ? JSON.stringify(rowData) : "Нет дополнительных данных";
 
     let nicheInstruction = "";
     if (topic === 'Logistics') {
       nicheInstruction = `
-      LOGISTICS MASTER PROTOCOL (STRICT EXPERT MODE):
-      1. STYLE: Пиши как высококлассный эксперт по ВЭД и международной логистике. Только профессиональная лексика.
-      2. TONE: Ты — носитель русского языка. Стиль строго деловой, экспертный. Полное отсутствие "воды" и вводных фраз.
-      3. H1 LIMIT: Заголовок H1 — СТРОГО ДО 190 символов.
-      4. EXCERPT LIMIT: Поле "excerpt" (Отрывок) — СТРОГО ДО 250 символов. Концентрированный смысл без воды.
-      5. FAQ MARKDOWN: Поле "faq" — объем СТРОГО ~1500 символов, формат Markdown. Используй ### для вопросов.
-      6. TEXT FORMAT: Поле "text" — лонгрид (3000+ слов) СТРОГО В ФОРМАТЕ MARKDOWN. Используй #, ##, ###.
-      7. TABLES: В поле "text" ОБЯЗАТЕЛЬНО 5+ сложных таблиц В ФОРМАТЕ MARKDOWN.
-      8. NO LSI: Не генерируй поле lsi_keywords.
-      9. SLUG RULE: ${originalSlug ? `STRICTLY use "${originalSlug}" as the "slug" value.` : 'Generate a unique SEO-friendly URL slug.'}
+      LOGISTICS MASTER PROTOCOL v3.0 (ULTRA-EXPERT MODE):
+      1. ПЕРСОНА: Вы — Senior Logistics Director с 20-летним стажем. Ваш текст — это экспертное руководство.
+      2. КОНТЕКСТ: Используйте данные (${contextString}) для адаптации контента под конкретные маршруты/грузы.
+      3. ТЕРМИНОЛОГИЯ: Используйте: "дроп-офф", "демередж", "детеншн", "карго-план", "кросс-докинг", "растаможка под ключ".
+      4. СТРУКТУРА: Глубокий анализ цепочек поставок, расчет рисков, технические спецификации контейнеров и упаковки.
+      5. ТАБЛИЦЫ: 5+ сложных таблиц с техническими данными (порты, тарифы, сроки, ТН ВЭД).
+      6. НИКАКОЙ ВОДЫ: Сразу к делу, Инкотермс 2020, конкретные схемы ВЭД.
+      7. FAQ: Экспертные ответы. Формат: ### Вопрос\nОтвет (строго без пустой строки между ними).
       `;
     }
 
     const systemInstruction = `You are a ${identity} and a Native ${language} speaker. 
-    Your goal is to provide ultra-premium, "water-free" content in Markdown format.
+    Your goal is to provide ultra-premium, "water-free" content in Russian.
     
     CRITICAL OUTPUT STRUCTURE (JSON):
     {
@@ -37,15 +35,13 @@ export class GeminiSEOService {
       "keywords": "10 specific high-freq keywords",
       "h1": "Main Landing Header (Strictly up to 190 characters)",
       "excerpt": "Marketing lead paragraph (Strictly up to 250 characters)",
-      "text": "MASSIVE Markdown article. 3000+ words. Include 5+ professional Markdown tables.",
-      "faq": "Markdown formatted FAQ section (Target ~1500 characters, use ### for questions)"
+      "text": "MASSIVE expert article. 3000+ words. 5+ professional tables.",
+      "faq": "Technical FAQ. Use ### for questions. The answer MUST follow immediately on the next line."
     }
 
-    Formatting Rules:
-    - Language: Perfect Native Russian.
-    - No filler: Zero fluff.
-    - Both "text" and "faq" fields must be in Markdown.
-    - DO NOT include lsi_keywords in the response.
+    Rules:
+    - Persona: Senior industry expert.
+    - Context: Integration of row data: ${contextString}.
     ${nicheInstruction}`;
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -53,13 +49,9 @@ export class GeminiSEOService {
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Generate massive expert SEO data for: "${keyword}". 
-        H1: max 190 chars. 
-        Excerpt: max 250 chars. 
-        Text: Markdown, 3000+ words.
-        FAQ: Markdown strictly ~1500 chars. 
-        Context: ${contextString}. 
-        Professional Russian, no water.`,
+        contents: `Generate exhaustive expert SEO content for: "${keyword}".
+        Current Context: ${contextString}.
+        Focus: International logistics and VED optimization.`,
         config: {
           systemInstruction,
           responseMimeType: "application/json",
@@ -83,24 +75,16 @@ export class GeminiSEOService {
       });
 
       const textOutput = response.text;
-      if (!textOutput) throw new Error("Empty response from model");
+      if (!textOutput) throw new Error("Empty response from Gemini");
       
       const parsed = JSON.parse(textOutput);
-      
-      if (originalSlug) {
-        parsed.slug = originalSlug;
-      }
+      if (originalSlug) parsed.slug = originalSlug;
 
       const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
         ?.map((chunk: any) => chunk.web?.uri)
         .filter(Boolean) || [];
 
-      return {
-        ...parsed,
-        sources,
-        rowData,
-        status: 'completed'
-      };
+      return { ...parsed, sources, rowData, status: 'completed' };
     } catch (error) {
       console.error("Gemini Service Exception:", error);
       throw error;

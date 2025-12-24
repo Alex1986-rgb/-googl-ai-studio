@@ -40,6 +40,29 @@ export const parseKeywordsFromExcel = (file: File): Promise<{keyword: string, ro
   });
 };
 
+/**
+ * Форматирует FAQ в строгий вид для экспорта:
+ * * Вопрос?
+ * Ответ.
+ * 
+ * (пустая строка между блоками)
+ */
+const formatFaqForExport = (faq: string): string => {
+  if (!faq) return "";
+  
+  // 1. Разбиваем на блоки по заголовкам ###
+  const blocks = faq.split(/^###\s+/m).filter(b => b.trim().length > 0);
+  
+  return blocks.map(block => {
+    const lines = block.trim().split('\n');
+    const question = lines[0].trim();
+    const answer = lines.slice(1).join('\n').trim();
+    
+    // Возвращаем в формате * Вопрос\nОтвет
+    return `* ${question}\n${answer}`;
+  }).join('\n\n'); // Добавляем пустую строку между парами вопрос-ответ
+};
+
 export const exportResultsToExcel = (results: SEOResult[]) => {
   const data = results.map(r => ({
     'Slug': r.slug,
@@ -50,7 +73,7 @@ export const exportResultsToExcel = (results: SEOResult[]) => {
     'H1 Header': r.h1,
     'Excerpt (Отрывок)': r.excerpt,
     'Article (Markdown)': r.text,
-    'FAQ (Markdown)': r.faq,
+    'FAQ (Export Format)': formatFaqForExport(r.faq),
     'Sources': (r.sources || []).join(', ')
   }));
 
@@ -61,18 +84,20 @@ export const exportResultsToExcel = (results: SEOResult[]) => {
 };
 
 export const exportResultsToJSON = (results: SEOResult[]) => {
-  const dataToExport = results.map(r => ({
-    slug: r.slug,
-    name: r.name,
-    title: r.title,
-    description: r.description,
-    keywords: r.keywords,
-    h1: r.h1, // До 190 символов
-    excerpt: r.excerpt, // До 250 символов (Отрывок)
-    text: r.text, // Markdown формат
-    faq: r.faq, // Markdown формат (~1500 символов)
-    sources: r.sources
-  }));
+  const dataToExport = results.map(r => {
+    return {
+      slug: r.slug,
+      name: r.name,
+      title: r.title,
+      description: r.description,
+      keywords: r.keywords,
+      h1: r.h1,
+      excerpt: r.excerpt,
+      text: r.text,
+      faq: formatFaqForExport(r.faq),
+      sources: r.sources
+    };
+  });
 
   const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
