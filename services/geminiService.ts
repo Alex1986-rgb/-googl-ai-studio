@@ -4,54 +4,43 @@ import { SEORequest, SEOResult, TOPIC_IDENTITIES } from "../types";
 
 export class GeminiSEOService {
   async generateSEOContent(request: SEORequest): Promise<Partial<SEOResult>> {
-    const { keyword, topic, language, targetLength, originalSlug, rowData } = request;
+    const { keyword, topic, language, targetLength, originalSlug, rowData, customPrompt } = request;
     const identity = TOPIC_IDENTITIES[topic as keyof typeof TOPIC_IDENTITIES] || TOPIC_IDENTITIES.General;
 
     const contextString = rowData ? JSON.stringify(rowData) : "Нет дополнительных данных";
 
-    let nicheInstruction = "";
-    if (topic === 'Logistics') {
-      nicheInstruction = `
-      LOGISTICS MASTER PROTOCOL v3.0 (ULTRA-EXPERT MODE):
-      1. ПЕРСОНА: Вы — Senior Logistics Director с 20-летним стажем. Ваш текст — это экспертное руководство.
-      2. КОНТЕКСТ: Используйте данные (${contextString}) для адаптации контента под конкретные маршруты/грузы.
-      3. ТЕРМИНОЛОГИЯ: Используйте: "дроп-офф", "демередж", "детеншн", "карго-план", "кросс-докинг", "растаможка под ключ".
-      4. СТРУКТУРА: Глубокий анализ цепочек поставок, расчет рисков, технические спецификации контейнеров и упаковки.
-      5. ТАБЛИЦЫ: 5+ сложных таблиц с техническими данными (порты, тарифы, сроки, ТН ВЭД).
-      6. НИКАКОЙ ВОДЫ: Сразу к делу, Инкотермс 2020, конкретные схемы ВЭД.
-      7. FAQ: Экспертные ответы. Формат: ### Вопрос\nОтвет (строго без пустой строки между ними).
-      `;
-    }
-
+    // Use the prompt from the UI if available, otherwise use identity defaults
     const systemInstruction = `You are a ${identity} and a Native ${language} speaker. 
-    Your goal is to provide ultra-premium, "water-free" content in Russian.
+    Your goal is to provide ultra-premium, expert-level content.
     
     CRITICAL OUTPUT STRUCTURE (JSON):
     {
       "slug": "SEO-friendly-slug",
-      "name": "Service/Brand Name",
+      "name": "Brand/Product Name",
       "title": "Meta Title (max 70 chars)",
       "description": "Meta Description (max 160 chars)",
-      "keywords": "10 specific high-freq keywords",
-      "h1": "Main Landing Header (Strictly up to 190 characters)",
-      "excerpt": "Marketing lead paragraph (Strictly up to 250 characters)",
-      "text": "MASSIVE expert article. 3000+ words. 5+ professional tables.",
-      "faq": "Technical FAQ. Use ### for questions. The answer MUST follow immediately on the next line."
+      "keywords": "10 high-freq technical keywords",
+      "h1": "Main Header (max 190 characters)",
+      "excerpt": "Expert lead paragraph (max 250 characters)",
+      "text": "Expert content. Technical terminology is a must.",
+      "faq": "Technical FAQ. Format: ### Question?\\nAnswer text immediately after."
     }
 
-    Rules:
-    - Persona: Senior industry expert.
-    - Context: Integration of row data: ${contextString}.
-    ${nicheInstruction}`;
+    Niche Specific Instructions:
+    ${customPrompt || 'Follow default expert guidelines for ' + topic}
+    
+    Current Data Context: ${contextString}
+    Language: ${language}`;
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     try {
+      const isHtmlNiche = topic.includes('Furniture');
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Generate exhaustive expert SEO content for: "${keyword}".
-        Current Context: ${contextString}.
-        Focus: International logistics and VED optimization.`,
+        ${isHtmlNiche ? 'Target: HTML description for website.' : 'Target: Markdown article.'}
+        Context: ${contextString}.`,
         config: {
           systemInstruction,
           responseMimeType: "application/json",

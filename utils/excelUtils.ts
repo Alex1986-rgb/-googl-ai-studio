@@ -41,26 +41,31 @@ export const parseKeywordsFromExcel = (file: File): Promise<{keyword: string, ro
 };
 
 /**
- * Форматирует FAQ в строгий вид для экспорта:
- * * Вопрос?
- * Ответ.
+ * Преобразует FAQ из Markdown (### Вопрос\nОтвет) 
+ * в требуемый заказчиком формат экспорта:
+ * * Какова разница между MAWB и HAWB?
+ * MAWB оформляется авиакомпанией...
  * 
  * (пустая строка между блоками)
  */
 const formatFaqForExport = (faq: string): string => {
   if (!faq) return "";
   
-  // 1. Разбиваем на блоки по заголовкам ###
-  const blocks = faq.split(/^###\s+/m).filter(b => b.trim().length > 0);
+  // Удаляем возможные дубликаты звездочек, если модель вдруг их сгенерировала
+  const cleanFaq = faq.replace(/^\*\s+/gm, '### ');
+  
+  // Разбиваем по заголовкам ###
+  const blocks = cleanFaq.split(/^###\s+/m).filter(b => b.trim().length > 0);
   
   return blocks.map(block => {
     const lines = block.trim().split('\n');
     const question = lines[0].trim();
+    // Собираем ответ из оставшихся строк, очищая от лишних пробелов
     const answer = lines.slice(1).join('\n').trim();
     
     // Возвращаем в формате * Вопрос\nОтвет
     return `* ${question}\n${answer}`;
-  }).join('\n\n'); // Добавляем пустую строку между парами вопрос-ответ
+  }).join('\n\n'); 
 };
 
 export const exportResultsToExcel = (results: SEOResult[]) => {
@@ -72,7 +77,7 @@ export const exportResultsToExcel = (results: SEOResult[]) => {
     'Keywords': r.keywords,
     'H1 Header': r.h1,
     'Excerpt (Отрывок)': r.excerpt,
-    'Article (Markdown)': r.text,
+    'Article (Markdown)': r.text, // Статья остается в чистом Markdown
     'FAQ (Export Format)': formatFaqForExport(r.faq),
     'Sources': (r.sources || []).join(', ')
   }));
@@ -93,8 +98,8 @@ export const exportResultsToJSON = (results: SEOResult[]) => {
       keywords: r.keywords,
       h1: r.h1,
       excerpt: r.excerpt,
-      text: r.text,
-      faq: formatFaqForExport(r.faq),
+      text: r.text, // Статья в Markdown
+      faq: formatFaqForExport(r.faq), // FAQ в формате * Вопрос\nОтвет
       sources: r.sources
     };
   });

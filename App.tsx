@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import ConfigPanel from './components/ConfigPanel';
-import { SEOResult, TopicType } from './types';
+import { SEOResult, TopicType, DEFAULT_PROMPTS } from './types';
 import { parseKeywordsFromExcel, exportResultsToExcel, exportResultsToJSON } from './utils/excelUtils';
 import { GeminiSEOService } from './services/geminiService';
 
@@ -29,6 +29,9 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<SEOResult | null>(null);
+  
+  // Custom Prompts State
+  const [customPrompts, setCustomPrompts] = useState<Record<TopicType, string>>(DEFAULT_PROMPTS);
 
   const resultsRef = useRef<SEOResult[]>([]);
 
@@ -141,7 +144,8 @@ const App: React.FC = () => {
             language,
             targetLength,
             originalSlug: currentItem.slug,
-            rowData: currentItem.rowData
+            rowData: currentItem.rowData,
+            customPrompt: customPrompts[topic] // Pass the edited prompt
           });
 
           setResults(prev => {
@@ -179,10 +183,15 @@ const App: React.FC = () => {
     setIsProcessing(false);
   };
 
-  const formatMarkdownToHtml = (md: string) => {
-    if (!md) return "";
+  const formatContentToHtml = (content: string, isMarkdown: boolean) => {
+    if (!content) return "";
     
-    let html = md
+    // If it's already HTML (from Furniture niches) we return as is
+    if (!isMarkdown || content.trim().startsWith('<')) {
+        return content;
+    }
+
+    let html = content
       .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold mt-8 mb-4">$1</h3>')
       .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-black mt-12 mb-6 border-l-8 border-indigo-600 pl-6">$1</h2>')
       .replace(/^# (.*$)/gim, '<h1 class="text-4xl font-black mt-14 mb-8 text-gray-900">$1</h1>')
@@ -226,11 +235,18 @@ const App: React.FC = () => {
     error: results.filter(r => r.status === 'error').length
   };
 
+  const handlePromptUpdate = (newPrompt: string) => {
+    setCustomPrompts(prev => ({
+      ...prev,
+      [topic]: newPrompt === "" ? DEFAULT_PROMPTS[topic] : newPrompt
+    }));
+  };
+
   if (hasKey === false) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-6 font-['Inter']">
         <div className="bg-neutral-900 p-12 rounded-[2rem] border-4 border-neutral-800 text-center max-w-lg shadow-2xl">
-          <h1 className="text-white text-3xl font-black mb-6 uppercase tracking-tighter text-indigo-500">Logistics Automator</h1>
+          <h1 className="text-white text-3xl font-black mb-6 uppercase tracking-tighter text-indigo-500">SEO Automator Pro</h1>
           <p className="text-gray-400 mb-8 text-sm leading-relaxed font-medium">Для начала работы необходимо выбрать платный API-ключ Google Cloud Project.</p>
           <button onClick={handleActivateKey} className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20">Выбрать ключ</button>
         </div>
@@ -244,25 +260,25 @@ const App: React.FC = () => {
       <main className="max-w-[1600px] mx-auto px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Column: Config & Control */}
-          <div className="lg:col-span-3 space-y-6">
-            <div className="bg-gray-900 text-white p-6 rounded-3xl shadow-2xl border-b-4 border-indigo-500">
-               <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-indigo-400">Статистика очереди</h4>
-               <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white/5 p-3 rounded-2xl">
-                    <div className="text-xl font-black">{stats.completed}</div>
-                    <div className="text-[9px] uppercase font-bold text-gray-500">Готово</div>
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-gray-900 text-white p-8 rounded-[2rem] shadow-2xl border-b-8 border-indigo-600">
+               <h4 className="text-[10px] font-black uppercase tracking-[0.3em] mb-6 text-indigo-400">Мониторинг ресурсов</h4>
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/5 p-5 rounded-3xl border border-white/10">
+                    <div className="text-2xl font-black tracking-tighter">{stats.completed}</div>
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-widest">Обработано</div>
                   </div>
-                  <div className="bg-white/5 p-3 rounded-2xl">
-                    <div className="text-xl font-black">{stats.pending}</div>
-                    <div className="text-[9px] uppercase font-bold text-gray-500">Ожидает</div>
+                  <div className="bg-white/5 p-5 rounded-3xl border border-white/10">
+                    <div className="text-2xl font-black tracking-tighter">{stats.pending}</div>
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-widest">Очередь</div>
                   </div>
-                  <div className="bg-white/5 p-3 rounded-2xl">
-                    <div className="text-xl font-black text-indigo-400">{stats.processing}</div>
-                    <div className="text-[9px] uppercase font-bold text-gray-500">В работе</div>
+                  <div className="bg-white/5 p-5 rounded-3xl border border-white/10">
+                    <div className="text-2xl font-black tracking-tighter text-indigo-400">{stats.processing}</div>
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-widest">Активно</div>
                   </div>
-                  <div className="bg-white/5 p-3 rounded-2xl">
-                    <div className="text-xl font-black text-red-400">{stats.error}</div>
-                    <div className="text-[9px] uppercase font-bold text-gray-500">Ошибки</div>
+                  <div className="bg-white/5 p-5 rounded-3xl border border-white/10">
+                    <div className="text-2xl font-black tracking-tighter text-red-400">{stats.error}</div>
+                    <div className="text-[9px] uppercase font-bold text-gray-500 tracking-widest">Ошибки</div>
                   </div>
                </div>
             </div>
@@ -275,98 +291,106 @@ const App: React.FC = () => {
               processAll={processAll} setProcessAll={setProcessAll}
               concurrency={concurrency} setConcurrency={setConcurrency}
               totalAvailable={results.length} isProcessing={isProcessing}
+              currentPrompt={customPrompts[topic]}
+              onPromptChange={handlePromptUpdate}
             />
 
-            <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
-              <h3 className="text-lg font-black uppercase tracking-tight text-gray-900 mb-6">Импорт ключей</h3>
-              <input type="file" onChange={handleFileUpload} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-black file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100 group transition-all">
+              <h3 className="text-lg font-black uppercase tracking-tight text-gray-900 mb-6 flex items-center gap-3">
+                <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Загрузка данных
+              </h3>
+              <div className="relative">
+                 <input type="file" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                 <div className="border-2 border-dashed border-gray-200 rounded-3xl p-10 text-center group-hover:border-indigo-500 transition-all bg-gray-50/50">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Нажмите для выбора XLSX</span>
+                 </div>
+              </div>
               
               {results.length > 0 && (
-                <button onClick={processBatch} disabled={isProcessing} className="w-full mt-6 py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-3">
+                <button onClick={processBatch} disabled={isProcessing} className="w-full mt-6 py-6 bg-indigo-600 text-white font-black rounded-3xl shadow-xl uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3">
                   {isProcessing ? (
                     <>
                       <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                      {progress}%
+                      {progress}% Обработано
                     </>
-                  ) : `Запустить (${stats.pending})`}
+                  ) : `Запустить (${stats.pending} строк)`}
                 </button>
               )}
             </div>
           </div>
 
           {/* Right Column: Results Table */}
-          <div className="lg:col-span-9 space-y-6">
-            <div className="bg-white rounded-[2rem] border border-gray-100 shadow-2xl overflow-hidden flex flex-col h-[calc(100vh-180px)]">
-              <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
-                <div className="flex items-center gap-6">
-                  <h2 className="text-2xl font-black uppercase tracking-tighter">Реестр контента</h2>
-                  <div className="h-8 w-px bg-gray-100"></div>
-                  <div className="flex gap-2">
-                    <span className="bg-gray-100 text-gray-500 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Всего: {results.length}</span>
-                    {isProcessing && <span className="bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase animate-pulse">Обработка...</span>}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+              <div className="p-10 border-b border-gray-50 flex justify-between items-center bg-white sticky top-0 z-20 backdrop-blur-xl">
+                <div>
+                  <h2 className="text-3xl font-black uppercase tracking-tighter mb-1">Реестр генерации</h2>
+                  <div className="flex gap-3">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total: {results.length}</span>
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Mode: {topic}</span>
                   </div>
                 </div>
                 <div className="flex gap-4">
                   {results.some(r => r.status === 'completed') && (
-                    <>
-                      <button onClick={() => exportResultsToJSON(results)} className="bg-gray-50 text-gray-900 border border-gray-200 px-6 py-3 rounded-2xl font-black text-[11px] uppercase hover:bg-gray-100 transition-all">JSON</button>
-                      <button onClick={() => exportResultsToExcel(results)} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-[11px] uppercase hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Экспорт XLSX</button>
-                    </>
+                    <button onClick={() => exportResultsToExcel(results)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-[11px] uppercase hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95">Экспорт XLSX</button>
                   )}
                   {results.length > 0 && (
-                    <button onClick={() => setResults([])} className="bg-red-50 text-red-600 px-6 py-3 rounded-2xl font-black text-[11px] uppercase hover:bg-red-600 hover:text-white transition-all">Сброс</button>
+                    <button onClick={() => setResults([])} className="bg-red-50 text-red-600 px-8 py-4 rounded-2xl font-black text-[11px] uppercase hover:bg-red-600 hover:text-white transition-all active:scale-95">Очистить</button>
                   )}
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto">
+              <div className="flex-1 overflow-auto px-4 pb-4">
                 <table className="w-full text-left">
-                  <thead className="bg-gray-50/50 border-b border-gray-100 sticky top-0 z-10 backdrop-blur-md">
+                  <thead className="bg-white border-b border-gray-100 sticky top-0 z-10">
                     <tr>
-                      <th className="p-6 font-black uppercase text-[10px] text-gray-400 tracking-widest">Ключ / Slug</th>
-                      <th className="p-6 font-black uppercase text-[10px] text-gray-400 tracking-widest">Контекст (Excel)</th>
-                      <th className="p-6 font-black uppercase text-[10px] text-gray-400 tracking-widest">Статус</th>
-                      <th className="p-6 font-black uppercase text-[10px] text-gray-400 tracking-widest text-right">Действия</th>
+                      <th className="p-8 font-black uppercase text-[10px] text-gray-400 tracking-widest">Ключ</th>
+                      <th className="p-8 font-black uppercase text-[10px] text-gray-400 tracking-widest">Контекст</th>
+                      <th className="p-8 font-black uppercase text-[10px] text-gray-400 tracking-widest">Статус</th>
+                      <th className="p-8 font-black uppercase text-[10px] text-gray-400 tracking-widest text-right">Управление</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {results.map((res, i) => (
-                      <tr key={i} className={`group transition-all ${res.status === 'processing' ? 'bg-indigo-50/20' : 'hover:bg-gray-50/50'}`}>
-                        <td className="p-6">
-                          <div className="font-black text-gray-900 text-base mb-1">{res.keyword}</div>
-                          {res.slug && <span className="text-[10px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded font-mono font-bold">{res.slug}</span>}
+                      <tr key={i} className={`group transition-all ${res.status === 'processing' ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}>
+                        <td className="p-8">
+                          <div className="font-black text-slate-900 text-lg mb-1 tracking-tight">{res.keyword}</div>
+                          {res.slug && <span className="text-[9px] bg-slate-100 text-slate-500 px-3 py-1 rounded-lg font-mono font-bold uppercase tracking-widest">{res.slug}</span>}
                         </td>
-                        <td className="p-6">
-                           <div className="flex flex-wrap gap-1 max-w-md">
-                              {res.rowData ? Object.entries(res.rowData).slice(0, 4).map(([k, v], idx) => (
-                                <span key={idx} className="text-[9px] bg-gray-100 text-gray-400 px-2 py-0.5 rounded border border-gray-200">
-                                  <span className="font-bold uppercase opacity-50">{k}:</span> {String(v)}
+                        <td className="p-8">
+                           <div className="flex flex-wrap gap-2 max-w-sm">
+                              {res.rowData ? Object.entries(res.rowData).slice(0, 3).map(([k, v], idx) => (
+                                <span key={idx} className="text-[9px] bg-white border border-gray-200 text-gray-400 px-3 py-1 rounded-xl shadow-sm">
+                                  <span className="font-black uppercase opacity-40">{k}:</span> {String(v)}
                                 </span>
-                              )) : <span className="text-[10px] italic text-gray-300">Нет данных</span>}
+                              )) : <span className="text-[10px] italic text-gray-300">Default</span>}
                            </div>
                         </td>
-                        <td className="p-6">
-                           <div className="flex items-center gap-3">
-                              <div className={`w-2 h-2 rounded-full ${res.status === 'completed' ? 'bg-emerald-500' : res.status === 'error' ? 'bg-red-500' : res.status === 'processing' ? 'bg-indigo-500 animate-ping' : 'bg-gray-300'}`}></div>
-                              <span className={`font-black uppercase text-[10px] ${res.status === 'completed' ? 'text-emerald-600' : res.status === 'error' ? 'text-red-600' : 'text-gray-400'}`}>{res.status}</span>
+                        <td className="p-8">
+                           <div className="flex items-center gap-4">
+                              <div className={`w-3 h-3 rounded-full shadow-lg ${res.status === 'completed' ? 'bg-emerald-400 shadow-emerald-100' : res.status === 'error' ? 'bg-rose-400 shadow-rose-100' : res.status === 'processing' ? 'bg-indigo-500 animate-pulse shadow-indigo-100' : 'bg-slate-200'}`}></div>
+                              <span className={`font-black uppercase text-[10px] tracking-widest ${res.status === 'completed' ? 'text-emerald-600' : res.status === 'error' ? 'text-rose-600' : 'text-slate-400'}`}>{res.status}</span>
                            </div>
                         </td>
-                        <td className="p-6 text-right">
+                        <td className="p-8 text-right">
                           {res.status === 'completed' && (
-                            <button onClick={() => setPreviewItem(res)} className="bg-white border-2 border-gray-100 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase text-gray-900 hover:border-indigo-600 hover:text-indigo-600 transition-all shadow-sm">Открыть превью</button>
+                            <button onClick={() => setPreviewItem(res)} className="bg-white border-2 border-indigo-50 px-8 py-3 rounded-2xl text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95">Просмотр</button>
                           )}
                           {res.status === 'error' && (
-                            <span className="text-[10px] font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg border border-red-100">{res.error}</span>
+                            <div className="text-[9px] font-black text-rose-500 bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 max-w-[200px] truncate">{res.error}</div>
                           )}
                         </td>
                       </tr>
                     ))}
                     {results.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-32 text-center">
-                          <div className="flex flex-col items-center gap-4 opacity-20">
-                             <svg className="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                             <div className="font-black uppercase tracking-[0.3em] text-sm">Файл не загружен</div>
+                        <td colSpan={4} className="p-40 text-center">
+                          <div className="flex flex-col items-center gap-6 opacity-30">
+                             <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center">
+                                <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                             </div>
+                             <div className="font-black uppercase tracking-[0.4em] text-xs text-slate-500">Загрузите файл для начала</div>
                           </div>
                         </td>
                       </tr>
@@ -381,33 +405,33 @@ const App: React.FC = () => {
 
       {/* Modal Preview */}
       {previewItem && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-2xl">
-          <div className="bg-white rounded-[3rem] w-full max-w-[95vw] h-[92vh] overflow-hidden flex shadow-2xl border-2 border-white/20">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/95 backdrop-blur-2xl animate-fade-in">
+          <div className="bg-white rounded-[4rem] w-full max-w-[98vw] h-[95vh] overflow-hidden flex shadow-2xl border border-white/20">
             {/* Sidebar Navigation */}
-            <div className="w-80 bg-slate-50 border-r border-slate-100 p-10 flex flex-col">
-               <div className="mb-12">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Панель управления</h4>
-                  <div className="space-y-3">
-                    <button onClick={() => copyToClipboard(previewItem.slug, "Slug")} className="w-full text-left bg-white p-4 rounded-2xl border border-slate-200 text-[11px] font-bold hover:border-indigo-500 transition-all flex justify-between items-center group">
-                      <span>Копировать Slug</span>
-                      <svg className="w-4 h-4 text-slate-300 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V7M8 7h8" /></svg>
+            <div className="w-96 bg-slate-50 border-r border-slate-100 p-12 flex flex-col">
+               <div className="mb-16">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-8 border-b border-slate-200 pb-4">Секция действий</h4>
+                  <div className="space-y-4">
+                    <button onClick={() => copyToClipboard(previewItem.slug, "Slug")} className="w-full text-left bg-white p-5 rounded-3xl border border-slate-200 text-[11px] font-black uppercase hover:border-indigo-500 transition-all flex justify-between items-center group shadow-sm active:scale-95">
+                      <span>Copy Slug</span>
+                      <svg className="w-4 h-4 text-slate-300 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V7M8 7h8" /></svg>
                     </button>
-                    <button onClick={() => copyToClipboard(previewItem.title, "Meta Title")} className="w-full text-left bg-white p-4 rounded-2xl border border-slate-200 text-[11px] font-bold hover:border-indigo-500 transition-all flex justify-between items-center group">
-                      <span>Копировать Title</span>
-                      <svg className="w-4 h-4 text-slate-300 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V7M8 7h8" /></svg>
+                    <button onClick={() => copyToClipboard(previewItem.title, "Meta Title")} className="w-full text-left bg-white p-5 rounded-3xl border border-slate-200 text-[11px] font-black uppercase hover:border-indigo-500 transition-all flex justify-between items-center group shadow-sm active:scale-95">
+                      <span>Copy Meta Title</span>
+                      <svg className="w-4 h-4 text-slate-300 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V7M8 7h8" /></svg>
                     </button>
-                    <button onClick={() => copyToClipboard(previewItem.text, "Статью")} className="w-full text-left bg-indigo-600 text-white p-5 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 mt-6">
-                      Копировать лонгрид
+                    <button onClick={() => copyToClipboard(previewItem.text, "Full Content")} className="w-full text-left bg-indigo-600 text-white p-6 rounded-3xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-200 mt-10 active:scale-95">
+                      Copy Expert Content
                     </button>
                   </div>
                </div>
 
                {previewItem.sources && previewItem.sources.length > 0 && (
                  <div className="flex-1 overflow-auto">
-                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Источники (Grounding)</h4>
-                   <div className="space-y-3">
+                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-8 border-b border-slate-200 pb-4">Grounding Sources</h4>
+                   <div className="space-y-4">
                      {previewItem.sources.map((url, i) => (
-                       <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block bg-white p-3 rounded-xl border border-slate-100 text-[9px] font-medium text-slate-500 truncate hover:text-indigo-600 transition-all">
+                       <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block bg-white p-5 rounded-2xl border border-slate-100 text-[10px] font-bold text-slate-600 truncate hover:text-indigo-600 transition-all shadow-sm">
                          {url}
                        </a>
                      ))}
@@ -418,64 +442,64 @@ const App: React.FC = () => {
 
             {/* Content Area */}
             <div className="flex-1 flex flex-col">
-              <div className="p-12 border-b border-slate-50 flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <div className="max-w-4xl">
-                   <div className="flex items-center gap-4 mb-4">
-                      <span className="bg-indigo-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">LOGISTICS PRO EDITION</span>
-                      <span className="text-[10px] font-bold text-slate-400">SLUG: {previewItem.slug}</span>
+              <div className="p-16 border-b border-slate-50 flex justify-between items-center sticky top-0 bg-white/90 backdrop-blur-2xl z-10">
+                <div className="max-w-5xl">
+                   <div className="flex items-center gap-6 mb-6">
+                      <span className="bg-indigo-600 text-white text-[10px] font-black px-6 py-2 rounded-full uppercase tracking-widest shadow-lg shadow-indigo-100">{topic.toUpperCase()} ELITE</span>
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest border-l border-slate-200 pl-6">ID: {previewItem.slug || 'AUTO'}</span>
                    </div>
-                   <h2 className="text-4xl font-black text-slate-900 tracking-tighter leading-none uppercase">{previewItem.h1}</h2>
+                   <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-[1.1] uppercase">{previewItem.h1}</h2>
                 </div>
-                <button onClick={() => setPreviewItem(null)} className="h-16 w-16 bg-slate-100 rounded-3xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-inner">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+                <button onClick={() => setPreviewItem(null)} className="h-24 w-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-inner active:scale-90">
+                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
 
-              <div className="flex-1 overflow-auto p-16 scroll-smooth">
-                 {/* Meta Dashboard */}
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 bg-slate-50 p-12 rounded-[3rem] border border-slate-100 mb-20 shadow-inner">
-                    <div className="space-y-10">
-                      <div>
-                        <span className="text-[11px] font-black uppercase text-indigo-500 block mb-4 tracking-[0.2em]">Meta Title</span>
-                        <p className="font-black text-slate-900 text-xl leading-tight">{previewItem.title}</p>
-                      </div>
-                      <div>
-                        <span className="text-[11px] font-black uppercase text-slate-400 block mb-4 tracking-[0.2em]">Meta Description</span>
-                        <p className="text-slate-600 text-sm leading-relaxed font-medium italic">"{previewItem.description}"</p>
-                      </div>
+              <div className="flex-1 overflow-auto p-20 scroll-smooth custom-preview">
+                 {/* Meta Info Dashboard */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-24">
+                    <div className="bg-indigo-50/50 p-12 rounded-[4rem] border border-indigo-100 shadow-inner">
+                        <div className="mb-12">
+                          <span className="text-[11px] font-black uppercase text-indigo-600 block mb-6 tracking-[0.3em]">Meta Title</span>
+                          <p className="font-black text-slate-900 text-2xl leading-tight">{previewItem.title}</p>
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black uppercase text-indigo-400 block mb-6 tracking-[0.3em]">Meta Description</span>
+                          <p className="text-slate-600 text-base leading-relaxed font-medium italic">"{previewItem.description}"</p>
+                        </div>
                     </div>
-                    <div className="space-y-10">
-                       <div>
-                        <span className="text-[11px] font-black uppercase text-orange-500 block mb-4 tracking-[0.2em]">Keywords</span>
-                        <div className="flex flex-wrap gap-2">
+                    <div className="bg-amber-50/50 p-12 rounded-[4rem] border border-amber-100 shadow-inner">
+                       <div className="mb-12">
+                        <span className="text-[11px] font-black uppercase text-amber-600 block mb-6 tracking-[0.3em]">SEO Tags</span>
+                        <div className="flex flex-wrap gap-3">
                           {previewItem.keywords.split(',').map((k, idx) => (
-                            <span key={idx} className="bg-white border border-orange-100 text-orange-600 px-4 py-1.5 rounded-xl font-black text-[10px] uppercase">{k.trim()}</span>
+                            <span key={idx} className="bg-white border border-amber-200 text-amber-700 px-5 py-2 rounded-2xl font-black text-[10px] uppercase tracking-wider shadow-sm">{k.trim()}</span>
                           ))}
                         </div>
                       </div>
-                      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                        <span className="text-[11px] font-black uppercase text-slate-400 block mb-4 tracking-[0.2em]">Excerpt (Лид)</span>
-                        <p className="text-slate-700 text-base leading-relaxed font-bold italic">{previewItem.excerpt}</p>
+                      <div className="bg-white p-10 rounded-[3rem] border border-amber-50 shadow-sm">
+                        <span className="text-[11px] font-black uppercase text-amber-400 block mb-6 tracking-[0.3em]">Excerpt</span>
+                        <p className="text-slate-700 text-lg leading-relaxed font-bold italic">{previewItem.excerpt}</p>
                       </div>
                     </div>
                  </div>
 
                  {/* Article Content */}
-                 <div className="generated-content prose prose-xl max-w-none">
-                    <div dangerouslySetInnerHTML={{ __html: formatMarkdownToHtml(previewItem.text) }} />
+                 <div className="generated-content prose prose-2xl max-w-none mb-40">
+                    <div dangerouslySetInnerHTML={{ __html: formatContentToHtml(previewItem.text, !topic.includes('Furniture')) }} />
                  </div>
 
                  {/* FAQ Section */}
                  {previewItem.faq && (
-                   <div className="mt-32 pt-20 border-t-8 border-slate-50">
-                     <h3 className="text-5xl font-black uppercase mb-16 text-slate-900 tracking-tighter flex items-center gap-8">
-                       <span className="w-24 h-2 bg-indigo-600 rounded-full"></span>
-                       Экспертный FAQ
+                   <div className="pt-32 border-t-8 border-slate-50 mb-20">
+                     <h3 className="text-6xl font-black uppercase mb-20 text-slate-900 tracking-tighter flex items-center gap-10">
+                       <span className="w-32 h-3 bg-indigo-600 rounded-full shadow-lg shadow-indigo-100"></span>
+                       Expert FAQ
                      </h3>
-                     <div className="bg-slate-900 p-16 rounded-[4rem] shadow-2xl">
+                     <div className="bg-slate-900 p-20 rounded-[5rem] shadow-3xl border border-indigo-900/30">
                        <div 
-                         className="preview-faq-content prose-invert prose-lg max-w-none"
-                         dangerouslySetInnerHTML={{ __html: formatMarkdownToHtml(previewItem.faq) }} 
+                         className="preview-faq-content prose-invert prose-2xl max-w-none"
+                         dangerouslySetInnerHTML={{ __html: formatContentToHtml(previewItem.faq, true) }} 
                        />
                      </div>
                    </div>
